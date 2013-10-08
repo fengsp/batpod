@@ -1,5 +1,8 @@
 batpod
 ======
+# A really tiny web framework
+ Just hundred lines of code
+
 
 	       _==/          i     i          \==_
 	     /XX/            |\___/|            \XX\
