@@ -58,7 +58,7 @@ def run_server(host, port, app):
         httpd = make_server(host, port, app)
         httpd.serve_forever()
     if os.environ.get('BATPOD_RELOADER') != 'true':
-        print "Serving on port " + str(port) + "..."
+        print " * Serving on port " + str(port) + "..."
     else:
         try:
             import thread

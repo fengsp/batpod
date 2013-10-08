@@ -4,16 +4,31 @@
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from batpod import BatPod
+from batpod import BatPod, abort
 
 
 app = BatPod(__name__)
 
 
-@app.route('/')
-def index():
+@app.route(r'/')
+def index(request):
     return 'hello world!'
 
 
+@app.route(r'/(?P<name>\w+)/')
+def fsp(request, name):
+    return name
+
+
+@app.route(r'/except/fsp/')
+def exceptfsp(request):
+    abort(501)
+
+
+@app.error(404)
+def _404():
+    return '404 fsp page'
+
+
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
