@@ -11,16 +11,41 @@
 
 import urllib
 import re
+import sys
+import os
+
+
+class cached_property(object):
+    
+    def __init__(self, func):
+        self.__name__ = func.__name__
+        self.__module__ = func.__module__
+        self.__doc__ = func.__doc__
+        self.func = func
+
+    def __get__(self, obj, type=None):
+        if obj is None:
+            return self
+        value = obj.__dict__.get(self.__name__, None)
+        if value is  None:
+            value = self.func(obj)
+            obj.__dict__[self.__name__] = value
+        return value
 
 
 class BatPod(object):
 
     def __init__(self, import_name):
+        self.import_name = import_name
         self.url_map = {}
         self.error_handler = {}
         self.before_request_funcs = []
         self.after_request_funcs = []
         self.teardown_request_funcs = []
+        static_rule = r'/static/(?P<filepath>[\w|\.|\/]+)'
+        static_rule_re = re.compile('^%s$' % static_rule)
+        self.url_map.setdefault('GET', []).append((static_rule_re, \
+            static_rule, self.serve_static()))
 
     def wsgi_app(self, environ, start_response):
         request = Request(environ)
@@ -58,6 +83,30 @@ class BatPod(object):
     def teardown_request(self, func):
         self.teardown_request_funcs.append(func)
         return func
+
+    def get_root(self):
+        mod = sys.modules.get(self.import_name)
+        if mod is not None and self.import_name != '__main__':
+            return os.path.dirname(os.path.abspath(mod.__file__))
+        else:
+            return os.getcwd()
+
+    def serve_static(self):
+        static_root = os.path.join(self.get_root(), 'static/')
+        def inner(request, filepath):
+            desired_path = os.path.join(static_root, filepath)
+            if not os.path.exists(desired_path):
+                raise HTTPException(404)
+            if not os.access(desired_path, os.R_OK):
+                raise HTTPException(403)
+            import mimetypes
+            ct = mimetypes.guess_type(desired_path)[0]
+            content = open(desired_path, 'r').read()
+            response = Response(content)
+            if ct is not None:
+                response.content_type = ct
+            return response
+        return inner
         
     def dispatch_request(self, request):
         try:
@@ -129,7 +178,15 @@ class Request(object):
     @property
     def args(self):
         from urlparse import parse_qs
-        return parse_qs(self.environ.get('QUERY_STRING', ''))
+        raw_args = parse_qs(self.environ.get('QUERY_STRING', ''), \
+            keep_blank_values=1)
+        args = {}
+        for key, value in raw_args.items():
+            if len(value) <= 1:
+                args[key] = value[0]
+            else:
+                args[key] = value
+        return args
 
     @property
     def headers(self):
@@ -148,6 +205,27 @@ class Request(object):
         for key, value in cookie.iteritems():
             result[key] = value
         return result
+
+    @cached_property
+    def forms(self):
+        import StringIO
+        import cgi
+        body = self.environ['wsgi.input'].read(self.content_length)
+        raw_forms = cgi.FieldStorage(fp=StringIO.StringIO(body), environ=\
+            self.environ, keep_blank_values=True)
+        forms = {}
+        for field, data in raw_forms:
+            if isinstance(data, list):
+                forms[field] = [d.value for d in data]
+            elif data.filename:
+                forms[field] = data
+            else:
+                forms[field] = data.value
+        return forms
+
+    @property
+    def content_length(self):
+        return int(self.environ.get('CONTENT_LENGTH', '0'))
 
     @property
     def host(self):
@@ -174,7 +252,7 @@ class Request(object):
 
 class Response(object):
     
-    def __init__(self, response, start_response=None):
+    def __init__(self, response='', start_response=None):
         self.status = '200 OK'
         self.content_type = 'text/html'
         self.headers = []
@@ -200,8 +278,7 @@ class Response(object):
         self.status = "%d %s" % (code, HTTP_STATUS_CODES[code])
 
     def __iter__(self):
-        for char in self.body:
-            yield char
+        yield self.body
 
 
 HTTP_STATUS_CODES = {
@@ -263,7 +340,7 @@ class HTTPException(Exception):
     
     def __init__(self, code):
         self.code = code
-        # Yes I don't seperate EXCEPTION_CODES here, you can raise 200, just don't do it!
+        # Just do not raise 200 exception
         if code not in HTTP_STATUS_CODES:
             raise Exception('illegal HTTP status code')
         self.name = HTTP_STATUS_CODES[code]
@@ -283,4 +360,12 @@ class HTTPException(Exception):
 
 def abort(code):
     """A shortcut for HTTP Exception raise"""
-    raise HTTPException(code)  
+    raise HTTPException(code)
+
+
+def redirect(url):
+    response = Response()
+    response.set_status(302)
+    response.content_type = 'text/plain'
+    response.add_header('Location', url)
+    return response
