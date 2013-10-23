@@ -4,7 +4,7 @@
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from batpod import BatPod, abort, redirect
+from batpod import BatPod, abort, redirect, Response
 
 
 app = BatPod(__name__)
@@ -28,6 +28,13 @@ def exceptfsp(request):
 @app.route(r'/redirect/')
 def redir(request):
     return redirect('/')
+
+
+@app.route(r'/response/')
+def res(request):
+    response = Response('fsptestresponse')
+    response.add_header('fsp', 'fspvalue')
+    return response
 
 
 @app.error(404)
