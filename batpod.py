@@ -33,6 +33,12 @@ class cached_property(object):
         return value
 
 
+def secure_path(path):
+    _split = re.compile(r'^[\0%s]' % re.escape(''.join(
+        [os.path.sep, os.path.altsep or ''])))
+    return _split.sub('', path)
+
+
 class BatPod(object):
 
     def __init__(self, import_name):
@@ -94,6 +100,7 @@ class BatPod(object):
     def serve_static(self):
         static_root = os.path.join(self.get_root(), 'static/')
         def inner(request, filepath):
+            filepath = secure_path(filepath)
             desired_path = os.path.join(static_root, filepath)
             if not os.path.exists(desired_path):
                 raise HTTPException(404)
