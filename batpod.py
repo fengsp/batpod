@@ -56,7 +56,6 @@ class BatPod(object):
     def wsgi_app(self, environ, start_response):
         request = Request(environ)
         response = self.dispatch_request(request)
-        res = Response(response)
         return Response(response, start_response)
 
     def route(self, rule, methods=['GET']):
