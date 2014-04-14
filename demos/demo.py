@@ -12,10 +12,10 @@ app = BatPod(__name__)
 
 @app.route(r'/')
 def index(request):
-    return 'hello world!'
+    return 'hello 世界!'
 
 
-@app.route(r'/name/(?P<name>\w+)/')
+@app.route(ur'/name/(?P<name>(\w|[\u4e00-\u9fa5])+)/')
 def fsp(request, name):
     return name
 

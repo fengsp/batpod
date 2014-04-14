@@ -12,6 +12,8 @@
 import urllib
 import re
 import sys
+reload(sys)
+sys.setdefaultencoding('utf-8')
 import os
 
 
@@ -117,8 +119,9 @@ class BatPod(object):
     def dispatch_request(self, request):
         try:
             try:
+                request_rule = request.rule
                 for rule_tuple in self.url_map[request.method]:
-                    match = rule_tuple[0].search(request.rule)
+                    match = rule_tuple[0].search(request_rule)
                     if match is not None:
                         view = rule_tuple[2]
                         return view(request, **match.groupdict())
@@ -175,11 +178,9 @@ class Request(object):
     @property
     def rule(self):
         parts = []
-        parts.append(urllib.quote(self.environ.get('SCRIPT_NAME', '') \
-                                              .rstrip('/')))
-        parts.append(urllib.quote('/' + self.environ.get('PATH_INFO', '') \
-                                                    .lstrip('/')))
-        return ''.join(parts)
+        parts.append(self.environ.get('SCRIPT_NAME', '').rstrip('/'))
+        parts.append('/' + self.environ.get('PATH_INFO', '').lstrip('/'))
+        return ''.join(parts).decode('utf-8')
 
     @property
     def args(self):
@@ -272,6 +273,9 @@ class Response(object):
         else:
             self.body = response
         
+        if isinstance(self.body, unicode):
+            self.body = self.body.encode('utf-8')
+
         if start_response is not None:
             headers = [('Content-Type', "%s; charset=utf-8" \
                 % self.content_type)] + self.headers
